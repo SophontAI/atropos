@@ -12,7 +12,7 @@ from atroposlib.envs.base import (
     BaseEnvConfig,
     EvalHandlingEnum,
     Item,
-    OpenaiConfig,
+    APIServerConfig,
     ScoredDataGroup,
 )
 from atroposlib.utils.tokenize_for_trainer import tokenize_for_trainer
@@ -29,7 +29,7 @@ class MCQAThinkingEnv(BaseEnv):
     def __init__(
         self,
         config: BaseEnvConfig,
-        server_configs: List[OpenaiConfig],
+        server_configs: List[APIServerConfig],
         slurm=True,
         testing=False,
     ):
@@ -47,7 +47,7 @@ class MCQAThinkingEnv(BaseEnv):
         self.eval_metrics = list()
 
     @classmethod
-    def config_init(self) -> Tuple[BaseEnvConfig, List[OpenaiConfig]]:
+    def config_init(self) -> Tuple[BaseEnvConfig, List[APIServerConfig]]:
         env_config = BaseEnvConfig(
             tokenizer_name="Qwen/Qwen2.5-1.5B-Instruct",
             group_size=32,
@@ -65,7 +65,7 @@ class MCQAThinkingEnv(BaseEnv):
             eval_limit_ratio=0.1,
         )
         server_configs = [
-            OpenaiConfig(
+            APIServerConfig(
                 model_name="Qwen/Qwen2.5-1.5B-Instruct",
                 base_url="http://localhost:9001/v1",
                 api_key="x",
