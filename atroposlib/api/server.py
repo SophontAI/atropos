@@ -8,6 +8,7 @@ from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 from atroposlib.api.utils import grab_exact_from_heterogeneous_queue
+from atroposlib.type_definitions import Message
 
 app = FastAPI(title="AtroposLib API")
 
@@ -50,7 +51,9 @@ class ScoredData(BaseModel):
     tokens: List[List[int]]
     masks: List[List[int]]
     scores: List[float]
+    advantages: Optional[List[List[float]]] = None
     ref_logprobs: Optional[List[List[float]]] = None
+    messages: Optional[List[List[Message]]] = None
     overrides: Optional[List[dict]] = None
     group_overrides: Optional[dict] = None
     images: Optional[Any] = None
@@ -212,7 +215,9 @@ async def get_latest_example():
             "tokens": [],
             "masks": [],
             "scores": [],
+            "advantages": [],
             "ref_logprobs": [],
+            "messages": [],
             "images": [],
         }
 
@@ -224,7 +229,9 @@ async def scored_data(scored_data: ScoredData):
             "tokens": scored_data.tokens,
             "masks": scored_data.masks,
             "scores": scored_data.scores,
+            "advantages": scored_data.advantages,
             "ref_logprobs": scored_data.ref_logprobs,
+            "messages": scored_data.messages,
             "overrides": scored_data.overrides,
             "group_overrides": scored_data.group_overrides,
             "images": scored_data.images,
@@ -245,8 +252,10 @@ async def scored_data_list(scored_data_list: List[ScoredData]):
                 "tokens": scored_data.tokens,
                 "masks": scored_data.masks,
                 "scores": scored_data.scores,
+                "advantages": scored_data.advantages,
                 "ref_logprobs": scored_data.ref_logprobs,
                 "images": scored_data.images,
+                "messages": scored_data.messages,
                 "overrides": scored_data.overrides,
                 "group_overrides": scored_data.group_overrides,
             }
