@@ -98,7 +98,7 @@ class MedCaseReasoningEnv(BaseEnv):
             max_token_length=4096,
             inference_weight=1.0,
             wandb_name="medcase_reasoning",
-            judge_api_key="your-openai-api-key-here",
+            judge_api_key="x",
         )
         
         server_configs = [
