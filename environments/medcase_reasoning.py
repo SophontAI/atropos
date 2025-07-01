@@ -139,15 +139,16 @@ class MedCaseReasoningEnv(BaseEnv):
             eval_handling=EvalHandlingEnum.LIMIT_TRAIN,
             eval_limit_ratio=0.1,
             use_openai_judge=True,
-            openai_model="gpt-4.1-nano"
+            openai_model="gpt-4o-mini"
         )
         server_configs = [
             APIServerConfig(
                 model_name="Qwen/Qwen2.5-1.5B-Instruct",
-                base_url="http://localhost:9004/v1",
+                base_url="http://localhost:9004/v1/",
                 api_key="x",
                 num_max_requests_at_once=32,
                 num_requests_for_eval=256,
+                #server_type="trl"
             )
         ]
 
@@ -215,28 +216,75 @@ class MedCaseReasoningEnv(BaseEnv):
         Returns:
             Tuple of lists containing items to score and backlog
         """
+        print(f"DEBUG: collect_trajectories called with item type: {type(item)}")
+        print(f"DEBUG: item length: {len(item) if hasattr(item, '__len__') else 'N/A'}")
+        print(f"DEBUG: item[0] type: {type(item[0])}")
+        print(f"DEBUG: item[0] length: {len(item[0]) if hasattr(item[0], '__len__') else 'N/A'}")
+        print(f"DEBUG: item[1] (ground truth): {item[1]}")
+        print(f"DEBUG: item[2] (original question): {item[2][:100]}...")
+        
         # Extract messages from the item
         messages = []
-        for role_dict in item[0]:
-            messages.append(dict(role_dict))
+        for i, role_dict in enumerate(item[0]):
+            print(f"DEBUG: Processing role_dict {i}: {type(role_dict)}")
+            message_dict = dict(role_dict)
+            print(f"DEBUG: Converted to dict: {message_dict}")
+            messages.append(message_dict)
+
+        print(f"DEBUG: Final messages list has {len(messages)} messages")
+        for i, msg in enumerate(messages):
+            print(f"DEBUG: Message {i}: role={msg.get('role', 'MISSING')}, content length={len(msg.get('content', ''))}")
 
         # Apply chat template to convert messages to a single string
-        prompt = self.tokenizer.apply_chat_template(
-            messages, add_generation_prompt=True, tokenize=False
-        )
+        print("DEBUG: Applying chat template...")
+        try:
+            prompt = self.tokenizer.apply_chat_template(
+                messages, add_generation_prompt=True, tokenize=False
+            )
+            print(f"DEBUG: Chat template applied successfully, prompt length: {len(prompt)}")
+            print(f"DEBUG: Prompt preview: {prompt[:200]}...")
+        except Exception as e:
+            print(f"DEBUG: Error applying chat template: {e}")
+            raise
 
         # Get completions from the model using completion() instead of chat_completion()
-        completions = await self.server.completion(
-            prompt=prompt,
-            n=self.config.group_size,
-            max_tokens=1024 * 16,
-            temperature=1.0,  # Using temperature to get diverse responses
-        )
+        print(f"DEBUG: Requesting {self.config.group_size} completions from server...")
+        try:
+            completions = await self.server.completion(
+                prompt=prompt,
+                n=self.config.group_size,
+                max_tokens=1024 * 16,
+                temperature=1.0,  # Using temperature to get diverse responses
+            )
+            print(f"DEBUG: Server completion returned: {type(completions)}")
+            if hasattr(completions, 'choices'):
+                print(f"DEBUG: Number of completion choices: {len(completions.choices)}")
+            else:
+                print(f"DEBUG: Completion object attributes: {dir(completions)}")
+        except Exception as e:
+            print(f"DEBUG: Error getting completions: {e}")
+            raise
 
         to_score = list()
         to_backlog = list()
 
+        print("DEBUG: Processing completion choices...")
         for i, completion_choice in enumerate(completions.choices):
+            print(f"DEBUG: Processing completion {i}")
+            print(f"DEBUG: Completion choice type: {type(completion_choice)}")
+            print(f"DEBUG: Completion choice attributes: {dir(completion_choice)}")
+            
+            if hasattr(completion_choice, 'text'):
+                print(f"DEBUG: Completion text length: {len(completion_choice.text)}")
+                print(f"DEBUG: Completion text preview: {completion_choice.text[:100]}...")
+            else:
+                print(f"DEBUG: No 'text' attribute found in completion choice")
+            
+            if hasattr(completion_choice, 'finish_reason'):
+                print(f"DEBUG: Finish reason: {completion_choice.finish_reason}")
+            else:
+                print(f"DEBUG: No 'finish_reason' attribute found")
+            
             # Create a copy of the prompt messages
             trajectory_messages = []
             for role_dict in item[0]:
@@ -244,8 +292,10 @@ class MedCaseReasoningEnv(BaseEnv):
 
             # Add the model's response
             trajectory_messages.append(
-                {"role": "assistant", "content": completion_choice.text}
+                {"role": "assistant", "content": completion_choice.text} #message.content}
             )
+
+            print(f"DEBUG: Created trajectory with {len(trajectory_messages)} messages")
 
             # Add to scoring queue with expected answer, original question, and stop reason
             to_score.append(
@@ -257,7 +307,21 @@ class MedCaseReasoningEnv(BaseEnv):
                 )
             )
 
-        to_postprocess = await self.score(to_score)
+        print(f"DEBUG: Created {len(to_score)} items to score")
+        print("DEBUG: Calling score function...")
+        
+        try:
+            to_postprocess = await self.score(to_score)
+            print(f"DEBUG: Score function returned: {type(to_postprocess)}")
+            if to_postprocess is not None:
+                print(f"DEBUG: Score result has {len(to_postprocess.get('tokens', []))} tokens")
+            else:
+                print("DEBUG: Score function returned None")
+        except Exception as e:
+            print(f"DEBUG: Error in score function: {e}")
+            raise
+        
+        print("DEBUG: collect_trajectories completed successfully")
         return to_postprocess, to_backlog
 
     async def is_equivalent_answer(
@@ -420,7 +484,7 @@ class MedCaseReasoningEnv(BaseEnv):
                     
                     # Use LLM judge to evaluate the answer
                     is_equivalent = await self.is_equivalent_answer(
-                        question, answer_section, ground_truth
+                        question, answer_section, ground_truth, is_eval=True
                     )
                     reward = 1.0 if is_equivalent else 0.0
                 else:

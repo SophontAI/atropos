@@ -727,11 +727,11 @@ class BaseEnv(ABC):
         start_time = time.time()
         logger.debug(f"handle_env: Starting with item: {item}")
         # do a rollout with item
-        try:
-            to_postprocess, to_backlog = await self.collect_trajectories(item)
-        except Exception:
-            to_postprocess = None
-            to_backlog = []
+        #try:
+        to_postprocess, to_backlog = await self.collect_trajectories(item)
+        #except Exception:
+        #    to_postprocess = None
+        #    to_backlog = []
         # add the items to the queue
         if len(to_backlog) > 0:
             self.backlog.extend(to_backlog)
